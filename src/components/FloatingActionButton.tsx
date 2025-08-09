@@ -12,7 +12,7 @@ export default function FloatingActionButton({
   ariaLabel 
 }: FloatingActionButtonProps) {
   return (
-    <div className="absolute bottom-6 right-6 z-10">
+    <div className="absolute bottom-20 right-6 z-10">
       <button
         onClick={onClick}
         className={`w-14 h-14 rounded-full text-white shadow-xl flex items-center justify-center ${

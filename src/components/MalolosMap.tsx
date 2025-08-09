@@ -10,6 +10,7 @@ import { usePinManagement } from '../hooks/usePinManagement';
 import FloatingActionButton from './FloatingActionButton';
 import BarangayInfo from './BarangayInfo';
 import AddPinDialog from './AddPinDialog';
+import PinList from './PinList';
 
 
 export default function MalolosMap() {
@@ -50,8 +51,8 @@ export default function MalolosMap() {
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/light-v11',
-      center: [120.8114, 14.8433],
-      zoom: 11,
+      center: [120.81918303610166, 14.865888482310723],
+      zoom: 13.5,
       maxBounds: [
         [120.75, 14.75], // Southwest bounds
         [120.90, 14.90]  // Northeast bounds
@@ -73,6 +74,22 @@ export default function MalolosMap() {
       } else {
         await addBarangayLayers();
       }
+    });
+
+    // Add map movement listeners
+    map.current.on('moveend', () => {
+      if (!map.current) return;
+      const center = map.current.getCenter();
+      const zoom = map.current.getZoom();
+      console.log('Map moved - Center:', [center.lng, center.lat], 'Zoom:', zoom);
+    });
+
+    // Also log on zoom changes
+    map.current.on('zoomend', () => {
+      if (!map.current) return;
+      const center = map.current.getCenter();
+      const zoom = map.current.getZoom();
+      console.log('Map zoomed - Center:', [center.lng, center.lat], 'Zoom:', zoom);
     });
 
     // Listen for style data loading to ensure pins are rendered
@@ -313,12 +330,16 @@ export default function MalolosMap() {
             'text-field': ['get', 'title'],
             'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
             'text-size': 18,
-            'text-anchor': 'top'
+            'text-anchor': 'top',
+            'text-offset': [0, 1.5],
+            'text-allow-overlap': false,
+            'text-ignore-placement': false
           },
           paint: {
-            "text-color": "#000000",
-            "text-halo-color": "#ffffff",
-            "text-halo-width": 2
+            'text-color': '#000000',
+            'text-halo-color': '#ffffff',
+            'text-halo-width': 2,
+            'text-halo-blur': 1
           }
         });
       }
@@ -438,6 +459,18 @@ export default function MalolosMap() {
     setEditingPin(null);
   };
 
+  const handlePinListClick = (pin: UserPin) => {
+    if (!map.current) return;
+    
+    // Center the map to the pin location and zoom to 18
+    map.current.flyTo({
+      center: [pin.lng, pin.lat],
+      zoom: 18,
+      duration: 1000,
+      essential: true
+    });
+  };
+
 
 
   // Removed legacy barangay text search handlers (now using Mapbox Geocoder)
@@ -468,11 +501,23 @@ export default function MalolosMap() {
       />
 
       
-      <div ref={mapContainer} className="w-full h-full" style={{ height: 'calc(100vh - 80px)' }} />
+      <div 
+        ref={mapContainer} 
+        className="w-full h-full" 
+        style={{ 
+          height: 'calc(100vh - 80px)'
+        }} 
+      />
       
       <BarangayInfo 
         barangay={selectedBarangay} 
         onClose={() => setSelectedBarangay(null)} 
+      />
+      
+      <PinList
+        pins={userPins}
+        onPinClick={handlePinListClick}
+        isVisible={true}
       />
       
       <AddPinDialog
