@@ -201,7 +201,7 @@ export default function MalolosMap() {
         deletePin(pinId);
       };
     }
-  }, [userPins, updatePin, deletePin]);
+  }, [userPins, deletePin]);
 
   // Render and sync markers with state
   useEffect(() => {
@@ -247,7 +247,7 @@ export default function MalolosMap() {
     });
 
     // Update pin labels GeoJSON source
-    const pinLabelsData = {
+    const pinLabelsData: GeoJSON.FeatureCollection = {
       type: 'FeatureCollection',
       features: userPins.map(pin => ({
         type: 'Feature',
@@ -294,7 +294,8 @@ export default function MalolosMap() {
         }
       });
     }
-  }, [userPins, attachPopupHandlers]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userPins, attachPopupHandlers]); // renderedMarkersRef is a ref and stable, no need to include in deps
 
   // Handle map click to add pin when in add mode
   useEffect(() => {
