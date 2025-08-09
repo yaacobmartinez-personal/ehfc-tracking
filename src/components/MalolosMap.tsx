@@ -242,108 +242,109 @@ export default function MalolosMap() {
         deletePin(pinId);
       };
     }
+   
   }, [userPins, deletePin]);
 
   // Render and sync markers with state
+  const renderPins = useCallback(() => {
+    if (!map.current) return;
+
+    console.log('Rendering pins, count:', userPins.length);
+    const markers = renderedMarkersRef.current;
+    const stateIds = new Set(userPins.map((p) => p.id));
+
+    // Remove markers that no longer exist
+    Object.keys(markers).forEach((id) => {
+      if (!stateIds.has(id)) {
+        markers[id].remove();
+        delete markers[id];
+      }
+    });
+
+    // Add/update markers from state
+    userPins.forEach((pin) => {
+      const existing = markers[pin.id];
+      if (!existing) {
+        console.log('Creating new marker for pin:', pin.title);
+        const popupHtml = getPinPopupHtml(pin);
+        const popup = new mapboxgl.Popup({ offset: 12 }).setHTML(popupHtml);
+        const marker = new mapboxgl.Marker({ color: '#2563eb' })
+          .setLngLat([pin.lng, pin.lat])
+          .setPopup(popup)
+          .addTo(map.current as mapboxgl.Map);
+
+        const popupInstance = marker.getPopup();
+        if (popupInstance) {
+          popupInstance.on('open', () => attachPopupHandlers(pin.id));
+        }
+        markers[pin.id] = marker;
+      } else {
+        // Update popup content if title changed
+        const currentPopup = existing.getPopup();
+        if (currentPopup) {
+          currentPopup.setHTML(getPinPopupHtml(pin));
+          // Rebind handlers on next open
+          currentPopup.on('open', () => attachPopupHandlers(pin.id));
+        }
+        existing.setLngLat([pin.lng, pin.lat]);
+      }
+    });
+
+    // Update pin labels GeoJSON source
+    const pinLabelsData: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: userPins.map(pin => ({
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [pin.lng, pin.lat]
+        },
+        properties: {
+          id: pin.id,
+          title: pin.title
+        }
+      }))
+    };
+
+    // Add or update pin labels source
+    const existingSource = map.current.getSource('pin-labels');
+    if (existingSource) {
+      (existingSource as mapboxgl.GeoJSONSource).setData(pinLabelsData);
+    } else {
+      map.current.addSource('pin-labels', {
+        type: 'geojson',
+        data: pinLabelsData
+      });
+
+      // Add pin labels layer
+      map.current.addLayer({
+        id: 'pin-labels',
+        type: 'symbol',
+        source: 'pin-labels',
+        layout: {
+          'text-field': ['get', 'title'],
+          'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+          'text-size': 18,
+          'text-anchor': 'top',
+          'text-offset': [0, 1.5],
+          'text-allow-overlap': true,
+          'text-ignore-placement': true
+        },
+        paint: {
+          'text-color': '#000000',
+          'text-halo-color': '#ffffff',
+          'text-halo-width': 2,
+          'text-halo-blur': 1
+        }
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userPins, attachPopupHandlers]);
+
   useEffect(() => {
     if (!map.current) return;
 
     console.log('Pin rendering effect triggered, userPins:', userPins);
-
-    // Function to render pins
-    const renderPins = () => {
-      if (!map.current) return;
-
-      console.log('Rendering pins, count:', userPins.length);
-      const markers = renderedMarkersRef.current;
-      const stateIds = new Set(userPins.map((p) => p.id));
-
-      // Remove markers that no longer exist
-      Object.keys(markers).forEach((id) => {
-        if (!stateIds.has(id)) {
-          markers[id].remove();
-          delete markers[id];
-        }
-      });
-
-      // Add/update markers from state
-      userPins.forEach((pin) => {
-        const existing = markers[pin.id];
-        if (!existing) {
-          console.log('Creating new marker for pin:', pin.title);
-          const popupHtml = getPinPopupHtml(pin);
-          const popup = new mapboxgl.Popup({ offset: 12 }).setHTML(popupHtml);
-          const marker = new mapboxgl.Marker({ color: '#2563eb' })
-            .setLngLat([pin.lng, pin.lat])
-            .setPopup(popup)
-            .addTo(map.current as mapboxgl.Map);
-
-          const popupInstance = marker.getPopup();
-          if (popupInstance) {
-            popupInstance.on('open', () => attachPopupHandlers(pin.id));
-          }
-          markers[pin.id] = marker;
-        } else {
-          // Update popup content if title changed
-          const currentPopup = existing.getPopup();
-          if (currentPopup) {
-            currentPopup.setHTML(getPinPopupHtml(pin));
-            // Rebind handlers on next open
-            currentPopup.on('open', () => attachPopupHandlers(pin.id));
-          }
-          existing.setLngLat([pin.lng, pin.lat]);
-        }
-      });
-
-      // Update pin labels GeoJSON source
-      const pinLabelsData: GeoJSON.FeatureCollection = {
-        type: 'FeatureCollection',
-        features: userPins.map(pin => ({
-          type: 'Feature',
-          geometry: {
-            type: 'Point',
-            coordinates: [pin.lng, pin.lat]
-          },
-          properties: {
-            id: pin.id,
-            title: pin.title
-          }
-        }))
-      };
-
-      // Add or update pin labels source
-      const existingSource = map.current.getSource('pin-labels');
-      if (existingSource) {
-        (existingSource as mapboxgl.GeoJSONSource).setData(pinLabelsData);
-      } else {
-        map.current.addSource('pin-labels', {
-          type: 'geojson',
-          data: pinLabelsData
-        });
-
-        // Add pin labels layer
-        map.current.addLayer({
-          id: 'pin-labels',
-          type: 'symbol',
-          source: 'pin-labels',
-          layout: {
-            'text-field': ['get', 'title'],
-            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-            'text-size': 18,
-            'text-anchor': 'top',
-            'text-offset': [0, 1.5],
-            'text-allow-overlap': false,
-            'text-ignore-placement': false
-          },
-          paint: {
-            'text-color': '#000000',
-            'text-halo-color': '#ffffff',
-            'text-halo-width': 2,
-            'text-halo-blur': 1
-          }
-        });
-      }
-    };
 
     // Check if style is loaded, if not, wait for it
     if (!map.current.isStyleLoaded()) {
@@ -362,7 +363,8 @@ export default function MalolosMap() {
       console.log('Style already loaded, rendering pins immediately');
       renderPins();
     }
-  }, [userPins, attachPopupHandlers]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [renderPins]);
 
   // Handle map click to add pin when in add mode
   useEffect(() => {
@@ -437,6 +439,7 @@ export default function MalolosMap() {
         mm.off('touchmove', moveCancel);
       }
     };
+   
   }, [isAddingPin, addPin]);
 
   const handleAddPinSubmit = async (data: { title: string; assignees: string[]; targetFamilies: string[] }) => {
