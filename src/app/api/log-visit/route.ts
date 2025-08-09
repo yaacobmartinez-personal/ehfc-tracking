@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { visitService, VisitData } from '../../../services/visitService';
+import { visitService, VisitData, LocationData } from '../../../services/visitService';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     const ip = forwarded ? forwarded.split(',')[0] : realIp || 'unknown';
 
     // Get location data from IP (you can integrate with a geolocation service here)
-    const locationData = {
+    const locationData: LocationData = {
       ...location_data,
       ip_address: ip
     };

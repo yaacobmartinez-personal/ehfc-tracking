@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { getDeviceInfo } from '../utils/deviceUtils';
+import { LocationData } from '../services/visitService';
 
 export function useVisitLogger() {
   useEffect(() => {
@@ -14,6 +15,13 @@ export function useVisitLogger() {
         const referrer = document.referrer || '';
 
         // Prepare visit data
+        const locationData: LocationData = {
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          language: navigator.language,
+          screen_resolution: `${screen.width}x${screen.height}`,
+          viewport: `${window.innerWidth}x${window.innerHeight}`
+        };
+
         const visitData = {
           user_agent: userAgent,
           device_type: deviceInfo.device_type,
@@ -21,12 +29,7 @@ export function useVisitLogger() {
           os: deviceInfo.os,
           page_url: pageUrl,
           referrer: referrer,
-          location_data: {
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            language: navigator.language,
-            screen_resolution: `${screen.width}x${screen.height}`,
-            viewport: `${window.innerWidth}x${window.innerHeight}`
-          }
+          location_data: locationData
         };
 
         // Log the visit using the API route
