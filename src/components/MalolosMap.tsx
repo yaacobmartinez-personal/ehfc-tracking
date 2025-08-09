@@ -65,8 +65,32 @@ export default function MalolosMap() {
       
       // Search bar removed - no geocoding functionality
 
-      try {
+      // Wait for style to be fully loaded before adding layers
+      if (!map.current.isStyleLoaded()) {
+        map.current.once('styledata', async () => {
+          await addBarangayLayers();
+        });
+      } else {
+        await addBarangayLayers();
+      }
+    });
 
+    // Listen for style data loading to ensure pins are rendered
+    map.current.on('styledata', () => {
+      // Trigger pin rendering when style is loaded
+      if (map.current && map.current.isStyleLoaded()) {
+        // Force re-render of pins
+        const currentPins = userPins;
+        if (currentPins.length > 0) {
+          // This will trigger the useEffect that renders pins
+        }
+      }
+    });
+
+    const addBarangayLayers = async () => {
+      if (!map.current) return;
+
+      try {
         // Fetch GeoJSON data from public folder
         const response = await fetch('/malolos.geojson');
         const geojsonData = await response.json();
@@ -106,7 +130,7 @@ export default function MalolosMap() {
         });
 
         // Add labels for barangay names
-      map.current.addLayer({
+        map.current.addLayer({
           id: "barangays-labels",
           type: "symbol",
           source: "malolos-barangays",
@@ -116,7 +140,7 @@ export default function MalolosMap() {
             "text-size": 12,
             "text-anchor": "center"
           },
-        paint: {
+          paint: {
             "text-color": "#2c3e50",
             "text-halo-color": "#ffffff",
             "text-halo-width": 1
@@ -172,7 +196,7 @@ export default function MalolosMap() {
       } catch (error) {
         console.error('Error loading GeoJSON data:', error);
       }
-    });
+    };
 
     return () => {
       if (map.current) {
@@ -207,95 +231,117 @@ export default function MalolosMap() {
   useEffect(() => {
     if (!map.current) return;
 
-    const markers = renderedMarkersRef.current;
-    const stateIds = new Set(userPins.map((p) => p.id));
+    console.log('Pin rendering effect triggered, userPins:', userPins);
 
-    // Remove markers that no longer exist
-    Object.keys(markers).forEach((id) => {
-      if (!stateIds.has(id)) {
-        markers[id].remove();
-        delete markers[id];
-      }
-    });
+    // Function to render pins
+    const renderPins = () => {
+      if (!map.current) return;
 
-    // Add/update markers from state
-    userPins.forEach((pin) => {
-      const existing = markers[pin.id];
-      if (!existing) {
-        const popupHtml = getPinPopupHtml(pin);
-        const popup = new mapboxgl.Popup({ offset: 12 }).setHTML(popupHtml);
-        const marker = new mapboxgl.Marker({ color: '#2563eb' })
-          .setLngLat([pin.lng, pin.lat])
-          .setPopup(popup)
-          .addTo(map.current as mapboxgl.Map);
+      console.log('Rendering pins, count:', userPins.length);
+      const markers = renderedMarkersRef.current;
+      const stateIds = new Set(userPins.map((p) => p.id));
 
-        const popupInstance = marker.getPopup();
-        if (popupInstance) {
-          popupInstance.on('open', () => attachPopupHandlers(pin.id));
+      // Remove markers that no longer exist
+      Object.keys(markers).forEach((id) => {
+        if (!stateIds.has(id)) {
+          markers[id].remove();
+          delete markers[id];
         }
-        markers[pin.id] = marker;
+      });
+
+      // Add/update markers from state
+      userPins.forEach((pin) => {
+        const existing = markers[pin.id];
+        if (!existing) {
+          console.log('Creating new marker for pin:', pin.title);
+          const popupHtml = getPinPopupHtml(pin);
+          const popup = new mapboxgl.Popup({ offset: 12 }).setHTML(popupHtml);
+          const marker = new mapboxgl.Marker({ color: '#2563eb' })
+            .setLngLat([pin.lng, pin.lat])
+            .setPopup(popup)
+            .addTo(map.current as mapboxgl.Map);
+
+          const popupInstance = marker.getPopup();
+          if (popupInstance) {
+            popupInstance.on('open', () => attachPopupHandlers(pin.id));
+          }
+          markers[pin.id] = marker;
+        } else {
+          // Update popup content if title changed
+          const currentPopup = existing.getPopup();
+          if (currentPopup) {
+            currentPopup.setHTML(getPinPopupHtml(pin));
+            // Rebind handlers on next open
+            currentPopup.on('open', () => attachPopupHandlers(pin.id));
+          }
+          existing.setLngLat([pin.lng, pin.lat]);
+        }
+      });
+
+      // Update pin labels GeoJSON source
+      const pinLabelsData: GeoJSON.FeatureCollection = {
+        type: 'FeatureCollection',
+        features: userPins.map(pin => ({
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [pin.lng, pin.lat]
+          },
+          properties: {
+            id: pin.id,
+            title: pin.title
+          }
+        }))
+      };
+
+      // Add or update pin labels source
+      const existingSource = map.current.getSource('pin-labels');
+      if (existingSource) {
+        (existingSource as mapboxgl.GeoJSONSource).setData(pinLabelsData);
       } else {
-        // Update popup content if title changed
-        const currentPopup = existing.getPopup();
-        if (currentPopup) {
-          currentPopup.setHTML(getPinPopupHtml(pin));
-          // Rebind handlers on next open
-          currentPopup.on('open', () => attachPopupHandlers(pin.id));
-        }
-        existing.setLngLat([pin.lng, pin.lat]);
-      }
-    });
+        map.current.addSource('pin-labels', {
+          type: 'geojson',
+          data: pinLabelsData
+        });
 
-    // Update pin labels GeoJSON source
-    const pinLabelsData: GeoJSON.FeatureCollection = {
-      type: 'FeatureCollection',
-      features: userPins.map(pin => ({
-        type: 'Feature',
-        geometry: {
-          type: 'Point',
-          coordinates: [pin.lng, pin.lat]
-        },
-        properties: {
-          id: pin.id,
-          title: pin.title
-        }
-      }))
+        // Add pin labels layer
+        map.current.addLayer({
+          id: 'pin-labels',
+          type: 'symbol',
+          source: 'pin-labels',
+          layout: {
+            'text-field': ['get', 'title'],
+            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+            'text-size': 18,
+            'text-anchor': 'top'
+          },
+          paint: {
+            "text-color": "#000000",
+            "text-halo-color": "#ffffff",
+            "text-halo-width": 2
+          }
+        });
+      }
     };
 
-    // Add or update pin labels source
-    const existingSource = map.current.getSource('pin-labels');
-    if (existingSource) {
-      (existingSource as mapboxgl.GeoJSONSource).setData(pinLabelsData);
+    // Check if style is loaded, if not, wait for it
+    if (!map.current.isStyleLoaded()) {
+      console.log('Style not loaded, waiting...');
+      const handleStyleLoad = () => {
+        console.log('Style loaded, rendering pins');
+        renderPins();
+      };
+      
+      if (map.current.loaded()) {
+        handleStyleLoad();
+      } else {
+        map.current.once('styledata', handleStyleLoad);
+      }
     } else {
-      map.current.addSource('pin-labels', {
-        type: 'geojson',
-        data: pinLabelsData
-      });
-
-      // Add pin labels layer
-      map.current.addLayer({
-        id: 'pin-labels',
-        type: 'symbol',
-        source: 'pin-labels',
-        layout: {
-          'text-field': ['get', 'title'],
-          'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-          'text-size': 11,
-          'text-anchor': 'top',
-          'text-offset': [0, 1.5],
-          'text-allow-overlap': false,
-          'text-ignore-placement': false
-        },
-        paint: {
-          'text-color': '#1e40af',
-          'text-halo-color': '#ffffff',
-          'text-halo-width': 2,
-          'text-halo-blur': 1
-        }
-      });
+      console.log('Style already loaded, rendering pins immediately');
+      renderPins();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userPins, attachPopupHandlers]); // renderedMarkersRef is a ref and stable, no need to include in deps
+  }, [userPins, attachPopupHandlers]);
 
   // Handle map click to add pin when in add mode
   useEffect(() => {

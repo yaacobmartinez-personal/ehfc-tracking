@@ -12,7 +12,9 @@ export function usePinManagement() {
   useEffect(() => {
     const loadPins = async () => {
       try {
+        console.log('Loading pins from Supabase...');
         const pins = await pinService.getAllPins();
+        console.log('Loaded pins:', pins);
         setUserPins(pins);
       } catch (error) {
         console.error('Failed to load pins:', error);

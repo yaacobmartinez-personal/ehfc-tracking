@@ -15,6 +15,7 @@ export interface PinData {
 export const pinService = {
   // Get all pins
   async getAllPins(): Promise<UserPin[]> {
+    console.log('Fetching pins from Supabase...');
     const { data, error } = await supabase
       .from('pins')
       .select('*')
@@ -25,7 +26,8 @@ export const pinService = {
       throw error;
     }
 
-    return data.map((pin: PinData) => ({
+    console.log('Raw pin data from Supabase:', data);
+    const mappedPins = data.map((pin: PinData) => ({
       id: pin.id,
       title: pin.title,
       lng: pin.lng,
@@ -33,6 +35,8 @@ export const pinService = {
       assignees: pin.assignees || [],
       targetFamilies: pin.target_families || [],
     }));
+    console.log('Mapped pins:', mappedPins);
+    return mappedPins;
   },
 
   // Create a new pin
