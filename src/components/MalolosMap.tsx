@@ -245,6 +245,55 @@ export default function MalolosMap() {
         existing.setLngLat([pin.lng, pin.lat]);
       }
     });
+
+    // Update pin labels GeoJSON source
+    const pinLabelsData = {
+      type: 'FeatureCollection',
+      features: userPins.map(pin => ({
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [pin.lng, pin.lat]
+        },
+        properties: {
+          id: pin.id,
+          title: pin.title
+        }
+      }))
+    };
+
+    // Add or update pin labels source
+    const existingSource = map.current.getSource('pin-labels');
+    if (existingSource) {
+      (existingSource as mapboxgl.GeoJSONSource).setData(pinLabelsData);
+    } else {
+      map.current.addSource('pin-labels', {
+        type: 'geojson',
+        data: pinLabelsData
+      });
+
+      // Add pin labels layer
+      map.current.addLayer({
+        id: 'pin-labels',
+        type: 'symbol',
+        source: 'pin-labels',
+        layout: {
+          'text-field': ['get', 'title'],
+          'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+          'text-size': 11,
+          'text-anchor': 'top',
+          'text-offset': [0, 1.5],
+          'text-allow-overlap': false,
+          'text-ignore-placement': false
+        },
+        paint: {
+          'text-color': '#1e40af',
+          'text-halo-color': '#ffffff',
+          'text-halo-width': 2,
+          'text-halo-blur': 1
+        }
+      });
+    }
   }, [userPins, attachPopupHandlers]);
 
   // Handle map click to add pin when in add mode
